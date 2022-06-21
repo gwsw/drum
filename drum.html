@@ -92,6 +92,13 @@ class MusicBar {
                         this.freqs[note].push(freq);
                     note = -1;
                 }
+            } else if (ch == '*') {
+                if (freq > 0) {
+                    for (let n = 0; n < this.freqs.length; ++n) {
+                        if (this.freqs[n].length == 0)
+                            this.freqs[n].push(freq);
+                    }
+                }
             } else if (ch == 'b') {
                 freq = bass_freq;
             } else if (ch == 's') {
