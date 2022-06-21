@@ -8,7 +8,7 @@
 
 <table>
 <tr><td> Pattern: </td><td> <input type="text" id="pattern" size="30"> </td></tr>
-<tr><td> BPM: </td><td> <input type="number" id="bpm" value="90" oninput="input_bpm()"> </td></tr>
+<tr><td> BPM: </td><td> <input type="number" id="bpm" value="90" onchange="input_bpm()"> </td></tr>
 <tr><td></td><td> <input type="button" id="play_btn" value="Play" onclick="click_play()"> </td></tr>
 </table>
 
@@ -16,48 +16,53 @@
 
 <script>
 
-var audio = null;
-var gain = null;
-var osc = null;
+// Constants
+var bpm            = 90;
+var bass_freq      = 120;
+var snare_freq     = 200;
+var drum_dur       = 100;
+var notes_per_bar  = 16;
+var beats_per_bar  = 4;
+
+// Globals
+var graph = null;
 var timeline = null;
 var next_play = -1;
-var start;
 
-var bass_freq = 120;
-var snare_freq = 200;
-var drum_dur = 100;
-var notes_per_bar = 16;
-var beats_per_bar = 4;
-var bpm = 90;
-
+// -------------------------------------------------------------------
 class AudioGraph {
+    constructor() {
+        this.audio = new (window.AudioContext || window.webkitAudioContext);
+        this.gain = this.audio.createGain();
+        this.set_gain(0);
+        this.gain.connect(this.audio.destination);
+        this.osc = this.audio.createOscillator();
+        this.osc.connect(this.gain);
+        this.osc.start(0);
+    }
+    tone(freq, dur) {
+        this.osc.frequency.value = freq;
+        this.set_gain(1);
+        ///FIXME window.setTimeout(function() { this.set_gain(0); }, dur);
+        window.setTimeout(AudioGraph_stop, dur);
+    }
+    set_gain(gain) {
+        this.gain.gain.setValueAtTime(gain, this.audio.currentTime);
+    }
+};
+function AudioGraph_stop() {
+    graph.gain.gain.setValueAtTime(0, graph.audio.currentTime);
 }
 
-function init() {
-    audio = new (window.AudioContext || window.webkitAudioContext);
-    gain = audio.createGain();
-    gain.gain.setValueAtTime(0, audio.currentTime);
-    gain.connect(audio.destination);
+// -------------------------------------------------------------------
 
-    osc = audio.createOscillator();
-    osc.connect(gain);
-    //osc.frequency.value = 400;
-    osc.start(0);
+function init() {
+    graph = new AudioGraph();
 }
 
 function click_play() {
-    ///let pattern = el("pattern").value;
-    timeline = [];
-    for (let i = 0; i < 16; ++i) {
-        timeline.push([]);
-    }
-
-timeline[0].push(snare_freq);
-timeline[4].push(bass_freq);
-timeline[8].push(snare_freq);
-timeline[12].push(bass_freq);
-timeline[14].push(bass_freq);
-
+    const pattern = el("pattern").value;
+    parse_pattern(pattern);
     let btn = el("play_btn");
     if (next_play >= 0) {
         btn.value = "Play";
@@ -76,9 +81,7 @@ function input_bpm() {
 function next() {
     if (next_play < 0) return;
     for (const freq of timeline[next_play % 16]) {
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(1, audio.currentTime);
-        window.setTimeout(stop_osc, drum_dur);
+        graph.tone(freq, drum_dur);
     }
     ++next_play;
     const notes_per_beat = notes_per_bar / beats_per_bar;
@@ -86,8 +89,17 @@ function next() {
     window.setTimeout(next, interval);
 }
 
-function stop_osc() {
-    gain.gain.setValueAtTime(0, audio.currentTime);
+function parse_pattern(pattern) {
+    timeline = [];
+    for (let i = 0; i < 16; ++i) {
+        timeline.push([]);
+    }
+
+timeline[0].push(snare_freq);
+timeline[4].push(bass_freq);
+timeline[8].push(snare_freq);
+timeline[12].push(bass_freq);
+timeline[14].push(bass_freq);
 }
 
 function now() {
