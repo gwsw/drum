@@ -32,7 +32,6 @@
 <script>
 
 // Constants
-var bpm            = 90;
 var bass_freq      = 120;
 var snare_freq     = 200;
 var hihat_freq     = 400;
@@ -42,9 +41,11 @@ var beats_per_bar  = 4;
 var notes_per_beat = notes_per_bar / beats_per_bar;
 
 // Globals
-var g_graph = null;
-var g_music_bar = null;
-var g_next_play = -1;
+var g_bpm          = 90;
+var g_graph        = null;
+var g_music_bar    = null;
+var g_next_play    = -1;
+var g_start        = 0;
 
 // -------------------------------------------------------------------
 class AudioGraph {
@@ -148,6 +149,7 @@ function click_play() {
     } else {
         btn.value = "Stop";
         g_next_play = 0;
+        g_start = now();
         next();
     }
 }
@@ -165,7 +167,7 @@ function change_ptype() {
 }
 
 function input_bpm() {
-    bpm = el("bpm").value;
+    g_bpm = el("bpm").value;
 }
 
 function next() {
@@ -174,8 +176,8 @@ function next() {
         g_graph.tone(freq, drum_dur);
     }
     ++g_next_play;
-    const interval = (60*1000 * beats_per_bar) / (bpm * notes_per_bar);
-    window.setTimeout(next, interval);
+    const ms_per_note = (60*1000 * beats_per_bar) / (g_bpm * notes_per_bar);
+    window.setTimeout(next, ms_per_note);
 }
 
 function msg(s, id) {
