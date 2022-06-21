@@ -12,7 +12,7 @@
 <tr><td></td><td> <input type="button" id="play_btn" value="Play" onclick="click_play()"> </td></tr>
 </table>
 
-<span id="msg">hi</span>
+<p id="msg" style="color:red"></p>
 
 <script>
 
@@ -20,13 +20,15 @@
 var bpm            = 90;
 var bass_freq      = 120;
 var snare_freq     = 200;
+var hihat_freq     = 400;
 var drum_dur       = 100;
 var notes_per_bar  = 16;
 var beats_per_bar  = 4;
+var notes_per_beat = notes_per_bar / beats_per_bar;
 
 // Globals
 var graph = null;
-var timeline = null;
+var bar = null;
 var next_play = -1;
 
 // -------------------------------------------------------------------
@@ -62,6 +64,7 @@ function init() {
 
 function click_play() {
     const pattern = el("pattern").value;
+    msg("");
     parse_pattern(pattern);
     let btn = el("play_btn");
     if (next_play >= 0) {
@@ -80,26 +83,58 @@ function input_bpm() {
 
 function next() {
     if (next_play < 0) return;
-    for (const freq of timeline[next_play % 16]) {
+    for (const freq of bar[next_play % 16]) {
         graph.tone(freq, drum_dur);
     }
     ++next_play;
-    const notes_per_beat = notes_per_bar / beats_per_bar;
     const interval = (60*1000 * beats_per_bar) / (bpm * notes_per_bar);
     window.setTimeout(next, interval);
 }
 
 function parse_pattern(pattern) {
-    timeline = [];
+    bar = [];
     for (let i = 0; i < 16; ++i) {
-        timeline.push([]);
+        bar.push([]);
     }
+    let note = -1;
+    let freq = 0;
+    pattern += ' ';
+    for (const ch of pattern.split('')) {
+        if (ch == '\r' || ch == '\n') {
+            ;
+        } else if (ch == ' ' || ch == ',') {
+            if (note >= 0) {
+                bar[note].push(freq);
+                note = -1;
+            }
+        } else if (ch == 'b') {
+            freq = bass_freq;
+        } else if (ch == 's') {
+            freq = snare_freq;
+        } else if (ch == 'h') {
+            freq = hihat_freq;
+        } else if (ch == '1') {
+            note = 0;
+        } else if (ch == '2') {
+            note = notes_per_beat;
+        } else if (ch == '3') {
+            note = 2*notes_per_beat;
+        } else if (ch == '4') {
+            note = 3*notes_per_beat;
+        } else if (ch == '&') {
+            note += notes_per_beat/2;
+        } else if (ch == 'e') {
+            note += notes_per_beat/4;
+        } else if (ch == 'u') {
+            note += 3*notes_per_beat/4;
+        } else {
+            msg("Invalid character '"+ch+"' in pattern.");
+        }
+    }
+}
 
-timeline[0].push(snare_freq);
-timeline[4].push(bass_freq);
-timeline[8].push(snare_freq);
-timeline[12].push(bass_freq);
-timeline[14].push(bass_freq);
+function msg(s) {
+    el("msg").innerHTML = s;
 }
 
 function now() {
