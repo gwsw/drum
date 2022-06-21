@@ -1,13 +1,14 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
 <html>
 <head>
-<title> Astro </title>
+<title> Drum Patterns </title>
 </head>
 
 <body onload="init()">
 
 <table>
 <tr><td> Pattern: </td><td> <input type="text" id="pattern" size="30"> </td></tr>
+<tr><td> BPM: </td><td> <input type="number" id="bpm" value="90" oninput="input_bpm()"> </td></tr>
 <tr><td></td><td> <input type="button" id="play_btn" value="Play" onclick="click_play()"> </td></tr>
 </table>
 
@@ -25,7 +26,9 @@ var start;
 var bass_freq = 120;
 var snare_freq = 200;
 var drum_dur = 100;
-var interval = 180;
+var notes_per_bar = 16;
+var beats_per_bar = 4;
+var bpm = 90;
 
 class AudioGraph {
 }
@@ -66,6 +69,10 @@ timeline[14].push(bass_freq);
     }
 }
 
+function input_bpm() {
+    bpm = el("bpm").value;
+}
+
 function next() {
     if (next_play < 0) return;
     for (const freq of timeline[next_play % 16]) {
@@ -74,6 +81,8 @@ function next() {
         window.setTimeout(stop_osc, drum_dur);
     }
     ++next_play;
+    const notes_per_beat = notes_per_bar / beats_per_bar;
+    const interval = (60*1000 * beats_per_bar) / (bpm * notes_per_bar);
     window.setTimeout(next, interval);
 }
 
