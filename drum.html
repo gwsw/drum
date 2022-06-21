@@ -30,6 +30,7 @@
 <p id="msg" style="color:red"></p>
 
 <script>
+// -------------------------------------------------------------------
 
 // Constants
 var bass_freq      = 120;
@@ -58,7 +59,7 @@ class AudioGraph {
         this.osc.connect(this.gain);
         this.osc.start(0);
     }
-    tone(freq, dur) {
+    play_tone(freq, dur) {
         this.osc.frequency.value = freq;
         this.set_gain(1);
         ///FIXME window.setTimeout(function() { this.set_gain(0); }, dur);
@@ -113,6 +114,10 @@ class MusicBar {
                 note += 3*notes_per_beat/4;
             } else {
                 msg("Invalid character '"+ch+"' in pattern.");
+            }
+            if (note >= this.freqs.length) {
+                msg("Note "+note.toString()+" out of range.");
+                note = this.freqs.length-1;
             }
         }
     }
@@ -173,7 +178,7 @@ function input_bpm() {
 function next() {
     if (g_next_play < 0) return;
     for (const freq of g_music_bar.freq(g_next_play)) {
-        g_graph.tone(freq, drum_dur);
+        g_graph.play_tone(freq, drum_dur);
     }
     ++g_next_play;
     const ms_per_note = (60*1000 * beats_per_bar) / (g_bpm * notes_per_bar);
