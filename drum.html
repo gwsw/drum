@@ -1,0 +1,82 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+<title> Astro </title>
+</head>
+
+<body onload="init()">
+
+<audio id="bass_audio"> <source src="bass.wav" type="audio/wav"> </audio>
+<audio id="snare_audio"> <source src="snare.wav" type="audio/wav"> </audio>
+
+<table>
+<tr><td> Pattern: </td><td> <input type="text" id="pattern" size="30"> </td></tr>
+<tr><td></td><td> <input type="button" id="play_btn" value="Play" onclick="click_play()"> </td></tr>
+</table>
+
+<span id="xx">hi</span>
+
+<script>
+
+var audio = null;
+var bass_audio = null;
+var snare_audio = null;
+var timeline = null;
+var next_play = -1;
+var interval = 350;
+var start;
+var last;
+
+function init() {
+    bass_audio = el("bass_audio");
+    snare_audio = el("snare_audio");
+}
+
+function click_play() {
+    ///let pattern = el("pattern").value;
+    timeline = [];
+    for (let i = 0; i < 16; ++i) {
+        timeline.push([snare_audio]);
+    }
+
+//timeline[0].push(bass_audio);
+//timeline[4].push(bass_audio);
+//timeline[8].push(bass_audio);
+//timeline[12].push(bass_audio);
+
+    let btn = el("play_btn");
+    if (next_play >= 0) {
+        btn.value = "Play";
+        next_play = -1;
+    } else {
+        btn.value = "Stop";
+        next_play = 0;
+last = now();
+        next();
+    }
+}
+
+function next() {
+    if (next_play < 0) return;
+    for (const a of timeline[next_play % 16]) {
+//if (a === bass_audio) console.log("play bass");
+//if (a === snare_audio) console.log("play snare");
+        a.load();
+el("xx").innerHTML = (now()-last).toString();
+last = now();
+        a.play();
+    }
+    ++next_play;
+    window.setTimeout(next, interval);
+}
+
+function now() {
+    return performance.now();
+}
+
+function el(id) {
+    return document.getElementById(id);
+}
+
+</script>
+</body>
