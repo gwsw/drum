@@ -78,18 +78,19 @@ function AudioGraph_stop() {
 // -------------------------------------------------------------------
 class MusicBar {
     constructor(pattern, ptype) {
-        const sel = el("ptype").selectedIndex;
-        if (sel == 0) {
+        this.bangs = [];
+        for (let n = 0; n < notes_per_bar; ++n) {
+            this.bangs.push([]);
+        }
+        if (ptype == "B") {
             this.init_beat(pattern);
-        } else {
+        } else if (ptype == "M") {
             this.init_music(pattern);
+        } else {
+            msg("invalid pattern type '"+ptype+"'.");
         }
     }
     init_beat(pattern) {
-        this.bangs = [];
-        for (let i = 0; i < 16; ++i) {
-            this.bangs.push([]);
-        }
         let note = -1;
         let freq = 0;
         pattern += ' ';
@@ -98,8 +99,10 @@ class MusicBar {
                 ;
             } else if (ch == ' ' || ch == ',') {
                 if (note >= 0) {
-                    if (freq > 0)
-                        this.bangs[note].push(freq);
+                    if (freq > 0) {
+                        const bang = new Bang(freq, drum_dur, 1); ///FIXME
+                        this.bangs[note].push(bang);
+                    }
                     note = -1;
                 }
             } else if (ch == '*') {
@@ -139,9 +142,8 @@ class MusicBar {
         }
     }
     init_music(pattern) {
-        /// FIXME
     }
-    freq(idx) {
+    bang(idx) {
         return this.bangs[idx % this.bangs.length];
     }
     total_bangs() {
@@ -155,9 +157,14 @@ class MusicBar {
 
 // -------------------------------------------------------------------
 class Bang {
-    constructor(freq, dur) {
+    constructor(freq, dur, gain) {
         this.freq = freq;
         this.dur = dur;
+        this.gain = gain;
+    }
+    play() {
+        g_graph.set_gain(this.gain);
+        g_graph.play_tone(this.freq, this.dur);
     }
 }
 
@@ -170,7 +177,8 @@ function init() {
 function click_play() {
     msg("");
     const pattern = el("pattern").value;
-    g_music_bar = new MusicBar(pattern);
+    const ptype = el("ptype").value;
+    g_music_bar = new MusicBar(pattern, ptype);
     if (g_music_bar.total_bangs() == 0) {
         msg("Nothing to play.");
         return;
@@ -183,7 +191,7 @@ function click_play() {
         btn.value = "Stop";
         g_next_play = 0;
         g_start = now();
-        next();
+        next_bang();
     }
 }
 
@@ -203,14 +211,15 @@ function input_bpm() {
     g_bpm = el("bpm").value;
 }
 
-function next() {
+function next_bang() {
     if (g_next_play < 0) return;
-    for (const freq of g_music_bar.freq(g_next_play)) {
-        g_graph.play_tone(freq, drum_dur);
+    for (const bang of g_music_bar.bang(g_next_play)) {
+        bang.play();
     }
     ++g_next_play;
+
     const ms_per_note = (60*1000 * beats_per_bar) / (g_bpm * notes_per_bar);
-    window.setTimeout(next, ms_per_note);
+    window.setTimeout(next_bang, ms_per_note);
 }
 
 function msg(s, id) {
