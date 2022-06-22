@@ -16,8 +16,10 @@
 <tr><td></td>
     <td id="beat_pat_help" style="color:green">
     Pattern is space-separated list of '(drum)(beat)', where <br/>
-    &nbsp;(drum): b=bass, s=snare, h=hi-hat; may be omitted to repeat the last drum <br/>
-    &nbsp;(beat): 1 1e 1& 1u 2 2e etc. or * to hit each empty note <br/>
+    <table>
+      <tr><td>(drum)</td> <td> b=bass, s=snare, h=hi-hat; may be omitted to repeat the previous drum </td></tr>
+      <tr><td>(beat)</td> <td> 1 1e 1& 1u 2 2e etc. or * to hit each empty note </td></tr>
+    </table>
     </td>
 <td id="music_pat_help" style="color:green; display:none">
     music help
@@ -75,10 +77,18 @@ function AudioGraph_stop() {
 
 // -------------------------------------------------------------------
 class MusicBar {
-    constructor(pattern) {
-        this.freqs = [];
+    constructor(pattern, ptype) {
+        const sel = el("ptype").selectedIndex;
+        if (sel == 0) {
+            this.init_beat(pattern);
+        } else {
+            this.init_music(pattern);
+        }
+    }
+    init_beat(pattern) {
+        this.bangs = [];
         for (let i = 0; i < 16; ++i) {
-            this.freqs.push([]);
+            this.bangs.push([]);
         }
         let note = -1;
         let freq = 0;
@@ -89,14 +99,14 @@ class MusicBar {
             } else if (ch == ' ' || ch == ',') {
                 if (note >= 0) {
                     if (freq > 0)
-                        this.freqs[note].push(freq);
+                        this.bangs[note].push(freq);
                     note = -1;
                 }
             } else if (ch == '*') {
                 if (freq > 0) {
-                    for (let n = 0; n < this.freqs.length; ++n) {
-                        if (this.freqs[n].length == 0)
-                            this.freqs[n].push(freq);
+                    for (let n = 0; n < this.bangs.length; ++n) {
+                        if (this.bangs[n].length == 0)
+                            this.bangs[n].push(freq);
                     }
                 }
             } else if (ch == 'b') {
@@ -122,21 +132,32 @@ class MusicBar {
             } else {
                 msg("Invalid character '"+ch+"' in pattern.");
             }
-            if (note >= this.freqs.length) {
+            if (note >= this.bangs.length) {
                 msg("Note "+note.toString()+" out of range.");
-                note = this.freqs.length-1;
+                note = this.bangs.length-1;
             }
         }
     }
+    init_music(pattern) {
+        /// FIXME
+    }
     freq(idx) {
-        return this.freqs[idx % this.freqs.length];
+        return this.bangs[idx % this.bangs.length];
     }
     total_bangs() {
         let bangs = 0;
-        for (const bang of this.freqs) {
+        for (const bang of this.bangs) {
             bangs += bang.length;
         }
         return bangs;
+    }
+}
+
+// -------------------------------------------------------------------
+class Bang {
+    constructor(freq, dur) {
+        this.freq = freq;
+        this.dur = dur;
     }
 }
 
