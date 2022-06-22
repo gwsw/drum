@@ -25,16 +25,7 @@
     Pattern is space-separated list of '(drum)(skip)', where (drum) is 
       <table>
       <tr><td>(drum)</td> <td> b=bass, s=snare, h=hi-hat, x=rest; may be omitted to repeat the previous drum </td></tr>
-      <tr><td>(skip)</td> <td> is note length:</td></tr>
-      <tr><td></td><td>
-        <table>
-          <tr><td>1<td><td>&nbsp;=&nbsp;</td><td>whole note</td></tr>
-          <tr><td>2<td><td>&nbsp;=&nbsp;</td><td>half note</td></tr>
-          <tr><td>4<td><td>&nbsp;=&nbsp;</td><td>quarter note</td></tr>
-          <tr><td>8<td><td>&nbsp;=&nbsp;</td><td>eighth note</td></tr>
-          <tr><td>6<td><td>&nbsp;=&nbsp;</td><td>sixteenth note</td></tr>
-        </table>
-        </td></tr>
+      <tr><td>(skip)</td> <td> 1=whole note, 2=half, 4=quarter, 8=eighth, 6=sixteenth</td></tr>
       </table>
     </td>
 </tr>
@@ -121,12 +112,7 @@ class MusicBar {
                     note = -1;
                 }
             } else if (ch == '*') {
-                if (freq > 0) {
-                    for (let n = 0; n < this.bangs.length; ++n) {
-                        if (this.bangs[n].length == 0)
-                            this.bangs[n].push(freq);
-                    }
-                }
+                this.add_all(freq, drum_dur, 1);
             } else if (ch == 'b') {
                 freq = bass_freq;
             } else if (ch == 's') {
@@ -178,6 +164,8 @@ class MusicBar {
                     note += skip;
                     skip = -1;
                 }
+            } else if (ch == '*') {
+                this.add_all(freq, drum_dur, 1);
             } else if (ch == 'b') {
                 freq = bass_freq;
             } else if (ch == 's') {
@@ -204,6 +192,15 @@ class MusicBar {
         }
         if (note != notes_per_bar) {
             msg("Expected "+notes_per_bar.toString()+" notes/bar; got "+note.toString()+".");
+        }
+    }
+    add_all(freq, dur, gain) {
+        if (freq <= 0) return;
+        const bang = new Bang(freq, dur, gain);
+        for (let n = 0; n < this.bangs.length; ++n) {
+            if (this.bangs[n].length == 0) {
+                this.bangs[n].push(bang);
+            }
         }
     }
     bang(idx) {
