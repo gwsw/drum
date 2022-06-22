@@ -15,17 +15,31 @@
     </select> </td></tr>
 <tr><td></td>
     <td id="beat_pat_help" style="color:green">
-    Pattern is space-separated list of '(drum)(beat)', where <br/>
+    Pattern is space-separated list of '(drum)(beat)', where
     <table>
       <tr><td>(drum)</td> <td> b=bass, s=snare, h=hi-hat; may be omitted to repeat the previous drum </td></tr>
       <tr><td>(beat)</td> <td> 1 1e 1& 1u 2 2e etc. or * to hit each empty note </td></tr>
     </table>
     </td>
 <td id="music_pat_help" style="color:green; display:none">
-    music help
+    Pattern is space-separated list of '(drum)(skip)', where (drum) is 
+      <table>
+      <tr><td>(drum)</td> <td> b=bass, s=snare, h=hi-hat, x=rest; may be omitted to repeat the previous drum </td></tr>
+      <tr><td>(skip)</td> <td> is note length:</td></tr>
+      <tr><td></td><td>
+        <table>
+          <tr><td>1<td><td>&nbsp;=&nbsp;</td><td>whole note</td></tr>
+          <tr><td>2<td><td>&nbsp;=&nbsp;</td><td>half note</td></tr>
+          <tr><td>4<td><td>&nbsp;=&nbsp;</td><td>quarter note</td></tr>
+          <tr><td>8<td><td>&nbsp;=&nbsp;</td><td>eighth note</td></tr>
+          <tr><td>6<td><td>&nbsp;=&nbsp;</td><td>sixteenth note</td></tr>
+        </table>
+        </td></tr>
+      </table>
     </td>
 </tr>
-<tr><td> BPM: </td><td> <input type="number" id="bpm" value="90" onchange="input_bpm()"> </td></tr>
+<tr><td> BPM: </td><td> <input type="number" id="bpm" value="90" onchange="change_bpm()"> </td></tr>
+<tr><td></td><td><span id="prog" style="font-family:monospace; font-size:3vw"></span></td></tr>
 <tr><td></td><td> <input type="button" id="play_btn" value="Play" onclick="click_play()"> </td></tr>
 </table>
 
@@ -47,7 +61,7 @@ var notes_per_beat = notes_per_bar / beats_per_bar;
 var g_bpm          = 90;
 var g_graph        = null;
 var g_music_bar    = null;
-var g_next_play    = -1;
+var g_note         = -1;
 var g_start        = 0;
 
 // -------------------------------------------------------------------
@@ -87,9 +101,10 @@ class MusicBar {
         } else if (ptype == "M") {
             this.init_music(pattern);
         } else {
-            msg("invalid pattern type '"+ptype+"'.");
+            msg("Invalid pattern type '"+ptype+"'.");
         }
     }
+    // b1 s2 b3 b3& s4
     init_beat(pattern) {
         let note = -1;
         let freq = 0;
@@ -141,7 +156,55 @@ class MusicBar {
             }
         }
     }
+    // b4 s8 x6 b6 x8 b6 b6 s4
     init_music(pattern) {
+        let note = 0;
+        let freq = 0;
+        let skip = -1;
+        pattern += ' ';
+        for (const ch of pattern.split('')) {
+            if (ch == '\r' || ch == '\n') {
+                ;
+            } else if (ch == ' ' || ch == ',') {
+                if (freq > 0) {
+                    if (note >= this.bangs.length-1) {
+                        msg("Note "+note.toString()+" out of range.");
+                        note = this.bangs.length-1;
+                    }
+                    const bang = new Bang(freq, drum_dur, 1); ///FIXME
+                    this.bangs[note].push(bang);
+                }
+                if (skip >= 0) {
+                    note += skip;
+                    skip = -1;
+                }
+            } else if (ch == 'b') {
+                freq = bass_freq;
+            } else if (ch == 's') {
+                freq = snare_freq;
+            } else if (ch == 'h') {
+                freq = hihat_freq;
+            } else if (ch == 'x') { // rest
+                freq = -1;
+            } else if (ch == '1' || ch == 'w') {
+                skip = notes_per_bar;
+            } else if (ch == '2' || ch == 'h') {
+                skip = round(notes_per_bar/2);
+            } else if (ch == '4' || ch == 'q') {
+                skip = round(notes_per_bar/4);
+            } else if (ch == '8' || ch == 'e') {
+                skip = round(notes_per_bar/8);
+            } else if (ch == '6') {
+                skip = round(notes_per_bar/16);
+            } else if (ch == '3' || ch == 't') {
+                skip = round(notes_per_bar/32);
+            } else {
+                msg("Invalid character '"+ch+"' in pattern.");
+            }
+        }
+        if (note != notes_per_bar) {
+            msg("Expected "+notes_per_bar.toString()+" notes/bar; got "+note.toString()+".");
+        }
     }
     bang(idx) {
         return this.bangs[idx % this.bangs.length];
@@ -175,7 +238,7 @@ function init() {
 }
 
 function click_play() {
-    msg("");
+    msg(null);
     const pattern = el("pattern").value;
     const ptype = el("ptype").value;
     g_music_bar = new MusicBar(pattern, ptype);
@@ -184,12 +247,13 @@ function click_play() {
         return;
     }
     let btn = el("play_btn");
-    if (g_next_play >= 0) {
+    if (g_note >= 0) {
         btn.value = "Play";
-        g_next_play = -1;
+        el("prog").innerHTML = "";
+        g_note = -1;
     } else {
         btn.value = "Stop";
-        g_next_play = 0;
+        g_note = 0;
         g_start = now();
         next_bang();
     }
@@ -207,24 +271,38 @@ function change_ptype() {
     }
 }
 
-function input_bpm() {
+function change_bpm() {
     g_bpm = el("bpm").value;
 }
 
 function next_bang() {
-    if (g_next_play < 0) return;
-    for (const bang of g_music_bar.bang(g_next_play)) {
+    if (g_note < 0) return;
+    for (const bang of g_music_bar.bang(g_note)) {
         bang.play();
     }
-    ++g_next_play;
+    const beat = Math.floor(g_note / notes_per_beat);
+    let s = "";
+    for (let b = 0; b < beats_per_bar; ++b) {
+        s += (b <= (beat % beats_per_bar)) ? "@" : ".";
+    }
+    el("prog").innerHTML = s;
+    ++g_note;
 
     const ms_per_note = (60*1000 * beats_per_bar) / (g_bpm * notes_per_bar);
     window.setTimeout(next_bang, ms_per_note);
 }
 
+function round(x) {
+    return Math.floor(x + 0.5);
+}
+
 function msg(s, id) {
     if (id === undefined) id = "msg";
-    el(id).innerHTML = s;
+    if (s == null) {
+        el(id).innerHTML = ""
+    } else {
+        el(id).innerHTML += s + "<br>";
+    }
 }
 
 function now() {
