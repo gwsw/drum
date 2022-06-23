@@ -40,10 +40,9 @@
 // -------------------------------------------------------------------
 
 // Constants
-var bass_freq      = 120;
-var snare_freq     = 200;
-var hihat_freq     = 400;
-var drum_dur       = 100;
+var bass_bang      = null;
+var snare_bang     = null;
+var hihat_bang     = null;
 var notes_per_bar  = 16;
 var beats_per_bar  = 4;
 var notes_per_beat = notes_per_bar / beats_per_bar;
@@ -66,9 +65,9 @@ class AudioGraph {
         this.osc.connect(this.gain);
         this.osc.start(0);
     }
-    play_tone(freq, dur) {
+    play_tone(freq, dur, gain) {
         this.osc.frequency.value = freq;
-        this.set_gain(1);
+        this.set_gain(gain);
         ///FIXME window.setTimeout(function() { this.set_gain(0); }, dur);
         window.setTimeout(AudioGraph_stop, dur);
     }
@@ -98,27 +97,26 @@ class MusicBar {
     // b1 s2 b3 b3& s4
     init_beat(pattern) {
         let note = -1;
-        let freq = 0;
+        let bang = null;
         pattern += ' ';
         for (const ch of pattern.split('')) {
             if (ch == '\r' || ch == '\n') {
                 ;
             } else if (ch == ' ' || ch == ',') {
                 if (note >= 0) {
-                    if (freq > 0) {
-                        const bang = new Bang(freq, drum_dur, 1); ///FIXME
+                    if (bang != null) {
                         this.bangs[note].push(bang);
                     }
                     note = -1;
                 }
             } else if (ch == '*') {
-                this.add_all(freq, drum_dur, 1);
+                this.add_all(bang);
             } else if (ch == 'b') {
-                freq = bass_freq;
+                bang = bass_bang;
             } else if (ch == 's') {
-                freq = snare_freq;
+                bang = snare_bang;
             } else if (ch == 'h') {
-                freq = hihat_freq;
+                bang = hihat_bang;
             } else if (ch == '1') {
                 note = 0;
             } else if (ch == '2') {
@@ -145,19 +143,18 @@ class MusicBar {
     // b4 s8 x6 b6 x8 b6 b6 s4
     init_music(pattern) {
         let note = 0;
-        let freq = 0;
+        let bang = null;
         let skip = -1;
         pattern += ' ';
         for (const ch of pattern.split('')) {
             if (ch == '\r' || ch == '\n') {
                 ;
             } else if (ch == ' ' || ch == ',') {
-                if (freq > 0) {
-                    if (note >= this.bangs.length-1) {
+                if (bang != null) {
+                    if (note >= this.bangs.length) {
                         msg("Note "+note.toString()+" out of range.");
                         note = this.bangs.length-1;
                     }
-                    const bang = new Bang(freq, drum_dur, 1); ///FIXME
                     this.bangs[note].push(bang);
                 }
                 if (skip >= 0) {
@@ -165,15 +162,16 @@ class MusicBar {
                     skip = -1;
                 }
             } else if (ch == '*') {
-                this.add_all(freq, drum_dur, 1);
+                this.add_all(bang);
+                bang = null;
             } else if (ch == 'b') {
-                freq = bass_freq;
+                bang = bass_bang;
             } else if (ch == 's') {
-                freq = snare_freq;
+                bang = snare_bang;
             } else if (ch == 'h') {
-                freq = hihat_freq;
+                bang = hihat_bang;
             } else if (ch == 'x') { // rest
-                freq = -1;
+                bang = null;
             } else if (ch == '1' || ch == 'w') {
                 skip = notes_per_bar;
             } else if (ch == '2' || ch == 'h') {
@@ -194,9 +192,8 @@ class MusicBar {
             msg("Expected "+notes_per_bar.toString()+" notes/bar; got "+note.toString()+".");
         }
     }
-    add_all(freq, dur, gain) {
-        if (freq <= 0) return;
-        const bang = new Bang(freq, dur, gain);
+    add_all(bang) {
+        if (bang == null) return;
         for (let n = 0; n < this.bangs.length; ++n) {
             if (this.bangs[n].length == 0) {
                 this.bangs[n].push(bang);
@@ -223,8 +220,7 @@ class Bang {
         this.gain = gain;
     }
     play() {
-        g_graph.set_gain(this.gain);
-        g_graph.play_tone(this.freq, this.dur);
+        g_graph.play_tone(this.freq, this.dur, this.gain);
     }
 }
 
@@ -232,23 +228,26 @@ class Bang {
 
 function init() {
     g_graph = new AudioGraph();
+    bass_bang  = new Bang(120, 100, 1);
+    snare_bang = new Bang(240, 100, 1);
+    hihat_bang = new Bang(600, 40, .1);
 }
 
 function click_play() {
     msg(null);
-    const pattern = el("pattern").value;
-    const ptype = el("ptype").value;
-    g_music_bar = new MusicBar(pattern, ptype);
-    if (g_music_bar.total_bangs() == 0) {
-        msg("Nothing to play.");
-        return;
-    }
     let btn = el("play_btn");
     if (g_note >= 0) {
         btn.value = "Play";
         el("prog").innerHTML = "";
         g_note = -1;
     } else {
+        const pattern = el("pattern").value;
+        const ptype = el("ptype").value;
+        g_music_bar = new MusicBar(pattern, ptype);
+        if (g_music_bar.total_bangs() == 0) {
+            msg("Nothing to play.");
+            return;
+        }
         btn.value = "Stop";
         g_note = 0;
         g_start = now();
