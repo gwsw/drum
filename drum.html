@@ -7,32 +7,42 @@
 <body onload="init()">
 
 <table>
-<tr><td> Pattern: </td><td> <input type="text" id="pattern" size="30"> </td></tr>
+<tr><td style="width:100px"> Pattern: </td><td style="width:120px"> <input type="text" id="pattern" name="pattern" size="30"> </td>
+    <td rowspan="3">
+    <input type="button" id="play_btn" value="Play" onclick="click_play()"> <br/>
+    <input type="button" id="save_btn" value="Save" onclick="click_save()"> <br/>
+    <input type="button" id="load_btn" value="Load" onclick="click_load()"> <br/>
+    </td>
+</tr>
 <tr><td> Pattern type: </td><td>
     <select id="ptype" onchange="change_ptype()">
       <option value="B">Beat notation</option>
       <option value="M">Music notation</option>
-    </select> </td></tr>
-<tr><td></td>
-    <td id="beat_pat_help" style="color:green">
-    Pattern is space-separated list of '(drum)(beat)', where
-    <table>
-      <tr><td>(drum)</td> <td> b=bass, s=snare, h=hi-hat; may be omitted to repeat the previous drum </td></tr>
-      <tr><td>(beat)</td> <td> 1 1e 1& 1u 2 2e etc. or * to hit each empty note </td></tr>
-    </table>
-    </td>
-<td id="music_pat_help" style="color:green; display:none">
-    Pattern is space-separated list of '(drum)(skip)', where (drum) is 
-      <table>
-      <tr><td>(drum)</td> <td> b=bass, s=snare, h=hi-hat, x=rest; may be omitted to repeat the previous drum </td></tr>
-      <tr><td>(skip)</td> <td> 1=whole note, 2=half, 4=quarter, 8=eighth, 6=sixteenth</td></tr>
-      </table>
-    </td>
+    </select> </td>
 </tr>
-<tr><td> BPM: </td><td> <input type="number" id="bpm" value="90" onchange="change_bpm()"> </td></tr>
+<tr><td> BPM: </td>
+    <td> <input type="number" id="bpm" value="90" onchange="change_bpm()"> </td>
+</tr>
 <tr><td></td><td><span id="prog" style="font-family:monospace; font-size:3vw"></span></td></tr>
-<tr><td></td><td> <input type="button" id="play_btn" value="Play" onclick="click_play()"> </td></tr>
 </table>
+
+<p>
+<div id="beat_pat_help" style="color:green">
+Pattern is space-separated list of '(drum)(beat)', where
+<table>
+  <tr><td>(drum)</td> <td> b=bass, s=snare, h=hi-hat; may be omitted to repeat the previous drum </td></tr>
+  <tr><td>(beat)</td> <td> 1 1e 1& 1u 2 2e etc. or * to hit each empty note </td></tr>
+</table>
+</div>
+
+<div id="music_pat_help" style="color:green; display:none">
+Pattern is space-separated list of '(drum)(skip)', where (drum) is 
+  <table>
+  <tr><td>(drum)</td> <td> b=bass, s=snare, h=hi-hat, x=rest; may be omitted to repeat the previous drum </td></tr>
+  <tr><td>(skip)</td> <td> 1=whole note, 2=half, 4=quarter, 8=eighth, 6=sixteenth</td></tr>
+  </table>
+</div>
+</p>
 
 <p id="msg" style="color:red"></p>
 
@@ -236,11 +246,7 @@ function init() {
 function click_play() {
     msg(null);
     let btn = el("play_btn");
-    if (g_note >= 0) {
-        btn.value = "Play";
-        el("prog").innerHTML = "";
-        g_note = -1;
-    } else {
+    if (g_note < 0) { // start playing
         const pattern = el("pattern").value;
         const ptype = el("ptype").value;
         g_music_bar = new MusicBar(pattern, ptype);
@@ -248,23 +254,38 @@ function click_play() {
             msg("Nothing to play.");
             return;
         }
+        display_help(false, false);
         btn.value = "Stop";
         g_note = 0;
         g_start = now();
         next_bang();
+    } else { // stop playing
+        change_ptype();
+        btn.value = "Play";
+        el("prog").innerHTML = "";
+        g_note = -1;
     }
+}
+
+function click_save() {
+}
+
+function click_load() {
 }
 
 function change_ptype() {
     el("pattern").value = "";
     const sel = el("ptype").selectedIndex;
     if (sel == 0) {
-        el("beat_pat_help").style.display = "block";
-        el("music_pat_help").style.display = "none";
+        display_help(true, false);
     } else {
-        el("music_pat_help").style.display = "block";
-        el("beat_pat_help").style.display = "none";
+        display_help(false, true);
     }
+}
+
+function display_help(beat, music) {
+    el("beat_pat_help").style.display = beat ? "block" : "none";
+    el("music_pat_help").style.display = music ? "block" : "none";
 }
 
 function change_bpm() {
