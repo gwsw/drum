@@ -9,7 +9,7 @@
 <table>
 <tr><td style="width:100px"> <label for="play_btn">Pattern:</label> </td><td style="width:120px"> <input type="text" id="pattern" name="pattern" size="30"> </td>
     <td>
-    <input type="button" id="play_btn" value="Play" onclick="click_play()"> <br/>
+    <input type="button" id="play_btn" value="Play" onclick="click_play()">
     </td>
 </tr>
 <tr><td> <label for="ptype">Pattern type:</label> </td><td>
@@ -19,30 +19,33 @@
     </select> </td>
 </tr>
 <tr><td> <label for="bpm">BPM:</label> </td>
-    <td> <input type="number" id="bpm" value="90" size="4" onchange="change_bpm()"> </td>
+    <td> <input type="number" id="bpm" value="90" min="1" max="999" size="4" onchange="change_bpm()"> </td>
 </tr>
-<tr><td></td><td><span id="prog" style="font-family:monospace; font-size:3vw"></span></td></tr>
+<tr>
+    <td></td><td><span id="prog" style="font-family:monospace; font-size:3vw"></span></td>
+</tr>
 </table>
-
+<p id="msg" style="color:red"></p>
+<hr>
+<p> <input type="button" id="help" value="Help" onclick="click_help()"> </p>
 <p>
-<div id="beat_pat_help" style="color:green">
+<div id="beat_pat_help" style="color:green; display:none">
 Pattern is space-separated list of '(drum)(beat)', where
 <table>
-  <tr><td>(drum)</td> <td> b=bass, s=snare, h=hi-hat; may be omitted to repeat the previous drum </td></tr>
-  <tr><td>(beat)</td> <td> 1 1e 1& 1u 2 2e etc. or * to hit each empty note </td></tr>
+  <tr><td>(drum) is:</td> <td> b=bass, s=snare, h=hi-hat; may be omitted to repeat the previous drum </td></tr>
+  <tr><td>(beat) is:</td> <td> 1 1e 1& 1u 2 2e etc. or * to hit each empty note </td></tr>
 </table>
 </div>
 
 <div id="music_pat_help" style="color:green; display:none">
-Pattern is space-separated list of '(drum)(skip)', where (drum) is 
+Pattern is space-separated list of '(drum)(skip)', where 
   <table>
-  <tr><td>(drum)</td> <td> b=bass, s=snare, h=hi-hat, x=rest; may be omitted to repeat the previous drum </td></tr>
-  <tr><td>(skip)</td> <td> 1=whole note, 2=half, 4=quarter, 8=eighth, 6=sixteenth</td></tr>
+  <tr><td>(drum) is:</td> <td> b=bass, s=snare, h=hi-hat, x=rest; may be omitted to repeat the previous drum </td></tr>
+  <tr><td>(skip) is:</td> <td> 1=whole note, 2=half, 4=quarter, 8=eighth, 6=sixteenth</td></tr>
   </table>
 </div>
 </p>
 
-<p id="msg" style="color:red"></p>
 
 <script>
 // -------------------------------------------------------------------
@@ -57,8 +60,8 @@ var notes_per_bar  = beats_per_bar * notes_per_beat;
 var max_bpm        = 999;
 
 // Globals
-var g_audio        = null;
 var g_music_bar    = null;
+var g_help         = false;
 
 // -------------------------------------------------------------------
 class AudioGraph {
@@ -84,10 +87,10 @@ class AudioGraph {
 
 // -------------------------------------------------------------------
 class MusicBar {
-    constructor(pattern, ptype) {
+    constructor(pattern, ptype, bpm) {
         this.bangs = [];
         this.note = -1;
-        this.bpm = 90;
+        this.set_bpm(bpm);
         for (let n = 0; n < notes_per_bar; ++n) {
             this.bangs.push([]);
         }
@@ -194,7 +197,7 @@ class MusicBar {
             }
         }
         if (note != notes_per_bar) {
-            msg("Expected "+notes_per_bar.toString()+" notes/bar; got "+note.toString()+".");
+            msg("Expected "+notes_per_bar.toString()+" notes; got "+note.toString()+".");
         }
     }
     set_bpm(bpm) {
@@ -253,47 +256,55 @@ class MusicBar {
 
 // -------------------------------------------------------------------
 class Bang {
-    constructor(freq, dur, gain) {
+    constructor(audio, freq, dur, gain) {
+        this.audio = audio;
         this.freq = freq;
         this.dur = dur;
         this.gain = gain;
     }
     play() {
-        g_audio.play_tone(this.freq, this.dur, this.gain);
+        this.audio.play_tone(this.freq, this.dur, this.gain);
     }
 }
 
 // -------------------------------------------------------------------
 
 function init() {
-    g_audio = new AudioGraph();
-    bass_bang  = new Bang(120, 100, 1);
-    snare_bang = new Bang(240, 100, 1);
-    hihat_bang = new Bang(600, 40, .1);
+    const audio = new AudioGraph();
+    bass_bang  = new Bang(audio, 120, 100, 1);
+    snare_bang = new Bang(audio, 240, 100, 1);
+    hihat_bang = new Bang(audio, 600, 40, .1);
 }
 
 function click_play() {
     msg(null);
-    let btn = el("play_btn");
+    let play_btn = el("play_btn");
     if (g_music_bar == null) { // start playing
         const pattern = el("pattern").value;
         const ptype = el("ptype").value;
-        g_music_bar = new MusicBar(pattern, ptype);
+        const bpm = el("bpm").value;
+        g_music_bar = new MusicBar(pattern, ptype, bpm);
+        el("bpm").value = g_music_bar.bpm;
         if (g_music_bar.total_bangs() == 0) {
             msg("Nothing to play.");
             g_music_bar = null;
             return;
         }
         display_help(false, false);
-        btn.value = "Stop";
+        play_btn.value = "Stop";
         g_music_bar.start_play();
     } else { // stop playing
-        update_help();
-        btn.value = "Play";
+        play_btn.value = "Play";
         el("prog").innerHTML = "";
         g_music_bar.stop_play();
         g_music_bar = null;
     }
+    update_help();
+}
+
+function click_help() {
+    g_help = !g_help;
+    update_help();
 }
 
 function change_ptype() {
@@ -302,11 +313,20 @@ function change_ptype() {
 }
 
 function update_help() {
-    const sel = el("ptype").selectedIndex;
-    if (sel == 0) {
-        display_help(true, false);
+    const is_beat = (el("ptype").selectedIndex == 0);
+    const is_playing = (g_music_bar != null && g_music_bar.is_playing);
+    let beat_help = false;
+    let music_help = false;
+    if (g_help && !is_playing) {
+        beat_help = is_beat;
+        music_help = !is_beat;
+    }
+    display_help(beat_help, music_help);
+    if (is_playing) {
+        el("help").style.display = "none";
     } else {
-        display_help(false, true);
+        el("help").value = g_help ? "Hide help" : "Help";
+        el("help").style.display = "block";
     }
 }
 
@@ -316,9 +336,11 @@ function display_help(beat, music) {
 }
 
 function change_bpm() {
-    if (g_music_bar != null) g_music_bar.set_bpm(el("bpm").value);
+    if (g_music_bar != null) {
+        g_music_bar.set_bpm(el("bpm").value);
+        el("bpm").value = g_music_bar.bpm;
+    }
 }
-
 
 function round(x) {
     return Math.floor(x + 0.5);
