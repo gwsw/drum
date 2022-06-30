@@ -29,7 +29,7 @@
 <hr>
 <p> <input type="button" id="help" value="Help" onclick="click_help()"> </p>
 <p>
-<div id="beat_pat_help" style="color:green; display:none">
+<div id="beat_help" style="color:green; display:none">
 Pattern is space-separated list of '(drum)(beat)', where
 <table>
   <tr><td>(drum) is:</td> <td> b=bass, s=snare, h=hi-hat; may be omitted to repeat the previous drum </td></tr>
@@ -37,7 +37,7 @@ Pattern is space-separated list of '(drum)(beat)', where
 </table>
 </div>
 
-<div id="music_pat_help" style="color:green; display:none">
+<div id="music_help" style="color:green; display:none">
 Pattern is space-separated list of '(drum)(skip)', where 
   <table>
   <tr><td>(drum) is:</td> <td> b=bass, s=snare, h=hi-hat, x=rest; may be omitted to repeat the previous drum </td></tr>
@@ -60,7 +60,7 @@ var notes_per_bar  = beats_per_bar * notes_per_beat;
 var max_bpm        = 999;
 
 // Globals
-var g_music_bar    = null;
+var g_bar    = null;
 var g_help         = false;
 
 // -------------------------------------------------------------------
@@ -90,118 +90,13 @@ class AudioGraph {
 // -------------------------------------------------------------------
 // A bar is divided into beats and each beat into notes.
 // Music is a set of bangs, each attached to a note.
-class MusicBar {
-    constructor(pattern, ptype, bpm) {
+class Bar {
+    constructor(bpm) {
         this.bangs = [];
         this.note = -1;
         this.set_bpm(bpm);
         for (let n = 0; n < notes_per_bar; ++n) {
             this.bangs.push([]);
-        }
-        if (ptype == "B") {
-            this.init_beat(pattern);
-        } else if (ptype == "M") {
-            this.init_music(pattern);
-        } else {
-            msg("Invalid pattern type '"+ptype+"'.");
-        }
-    }
-    // b1 s2 b3 b3& s4
-    init_beat(pattern) {
-        let note = -1;
-        let bang = null;
-        pattern += ' ';
-        for (const ch of pattern.split('')) {
-            if (ch == '\r' || ch == '\n') {
-                ;
-            } else if (ch == ' ' || ch == ',') {
-                if (note >= 0) {
-                    if (bang != null) {
-                        this.bangs[note].push(bang);
-                    }
-                    note = -1;
-                }
-            } else if (ch == '*') {
-                this.add_all(bang);
-            } else if (ch == 'b') {
-                bang = bass_bang;
-            } else if (ch == 's') {
-                bang = snare_bang;
-            } else if (ch == 'h') {
-                bang = hihat_bang;
-            } else if (ch == '1') {
-                note = 0;
-            } else if (ch == '2') {
-                note = notes_per_beat;
-            } else if (ch == '3') {
-                note = 2*notes_per_beat;
-            } else if (ch == '4') {
-                note = 3*notes_per_beat;
-            } else if (ch == '&') {
-                note += notes_per_beat/2;
-            } else if (ch == 'e') {
-                note += notes_per_beat/4;
-            } else if (ch == 'u') {
-                note += 3*notes_per_beat/4;
-            } else {
-                msg("Invalid character '"+ch+"' in pattern.");
-            }
-            if (note >= this.bangs.length) {
-                msg("Note "+note.toString()+" out of range.");
-                note = this.bangs.length-1;
-            }
-        }
-    }
-    // b4 s8 x6 b6 x8 b6 b6 s4
-    init_music(pattern) {
-        let note = 0;
-        let bang = null;
-        let skip = -1;
-        pattern += ' ';
-        for (const ch of pattern.split('')) {
-            if (ch == '\r' || ch == '\n') {
-                ;
-            } else if (ch == ' ' || ch == ',') {
-                if (bang != null) {
-                    if (note >= this.bangs.length) {
-                        msg("Note "+note.toString()+" out of range.");
-                        note = this.bangs.length-1;
-                    }
-                    this.bangs[note].push(bang);
-                }
-                if (skip >= 0) {
-                    note += skip;
-                    skip = -1;
-                }
-            } else if (ch == '*') {
-                this.add_all(bang);
-                bang = null;
-            } else if (ch == 'b') {
-                bang = bass_bang;
-            } else if (ch == 's') {
-                bang = snare_bang;
-            } else if (ch == 'h') {
-                bang = hihat_bang;
-            } else if (ch == 'x') { // rest
-                bang = null;
-            } else if (ch == '1' || ch == 'w') {
-                skip = notes_per_bar;
-            } else if (ch == '2' || ch == 'h') {
-                skip = round(notes_per_bar/2);
-            } else if (ch == '4' || ch == 'q') {
-                skip = round(notes_per_bar/4);
-            } else if (ch == '8' || ch == 'e') {
-                skip = round(notes_per_bar/8);
-            } else if (ch == '6') {
-                skip = round(notes_per_bar/16);
-            } else if (ch == '3' || ch == 't') {
-                skip = round(notes_per_bar/32);
-            } else {
-                msg("Invalid character '"+ch+"' in pattern.");
-            }
-        }
-        if (note != notes_per_bar) {
-            msg("Expected "+notes_per_bar.toString()+" notes; got "+note.toString()+".");
         }
     }
     set_bpm(bpm) {
@@ -231,14 +126,16 @@ class MusicBar {
         }
         el("prog").innerHTML = s;
         ++this.note;
-
+        //  ms     sec   ms    beat   min    bar
+        // ---- =  --- * --- * ---- * ---- * ----
+        // note    min   sec   bar    beat   note
         const ms_per_note = (60*1000 * beats_per_bar) / (this.bpm * notes_per_bar);
-        window.setTimeout(MusicBar.s_next_bang, ms_per_note);
+        window.setTimeout(Bar.s_next_bang, ms_per_note);
     }
     static s_next_bang() {
-        if (g_music_bar != null) g_music_bar.next_bang();
+        if (g_bar != null) g_bar.next_bang();
     }
-    add_all(bang) {
+    add_to_all_empty(bang) {
         if (bang == null) return;
         for (let n = 0; n < this.bangs.length; ++n) {
             if (this.bangs[n].length == 0) {
@@ -255,6 +152,114 @@ class MusicBar {
             bangs += bang.length;
         }
         return bangs;
+    }
+}
+
+// -------------------------------------------------------------------
+class BeatBar extends Bar {
+    // b1 s2 b3 b3& s4
+    constructor(pattern, bpm) {
+        super(bpm);
+        let note = -1;
+        let bang = null;
+        pattern += ' ';
+        for (const ch of pattern.split('')) {
+            if (ch == '\r' || ch == '\n') {
+                ;
+            } else if (ch == ' ' || ch == ',') {
+                if (note >= 0) {
+                    if (bang != null) {
+                        this.bangs[note].push(bang);
+                    }
+                    note = -1;
+                }
+            } else if (ch == '*') {
+                this.add_to_all_empty(bang);
+            } else if (ch == 'b') {
+                bang = bass_bang;
+            } else if (ch == 's') {
+                bang = snare_bang;
+            } else if (ch == 'h') {
+                bang = hihat_bang;
+            } else if (ch == '1') {
+                note = 0;
+            } else if (ch == '2') {
+                note = notes_per_beat;
+            } else if (ch == '3') {
+                note = 2*notes_per_beat;
+            } else if (ch == '4') {
+                note = 3*notes_per_beat;
+            } else if (ch == '&') {
+                note += notes_per_beat/2;
+            } else if (ch == 'e') {
+                note += notes_per_beat/4;
+            } else if (ch == 'u') {
+                note += 3*notes_per_beat/4;
+            } else {
+                msg("Invalid character '"+ch+"' in pattern.");
+            }
+            if (note >= this.bangs.length) {
+                msg("Note "+note.toString()+" out of range.");
+                note = this.bangs.length-1;
+            }
+        }
+    }
+}
+
+// -------------------------------------------------------------------
+class MusicBar extends Bar {
+    // b4 s8 x6 b6 x8 b6 b6 s4
+    constructor(pattern, bpm) {
+        super(bpm);
+        let note = 0;
+        let bang = null;
+        let skip = -1;
+        pattern += ' ';
+        for (const ch of pattern.split('')) {
+            if (ch == '\r' || ch == '\n') {
+                ;
+            } else if (ch == ' ' || ch == ',') {
+                if (bang != null) {
+                    if (note >= this.bangs.length) {
+                        msg("Note "+note.toString()+" out of range.");
+                        note = this.bangs.length-1;
+                    }
+                    this.bangs[note].push(bang);
+                }
+                if (skip >= 0) {
+                    note += skip;
+                    skip = -1;
+                }
+            } else if (ch == '*') {
+                this.add_to_all_empty(bang);
+                bang = null;
+            } else if (ch == 'b') {
+                bang = bass_bang;
+            } else if (ch == 's') {
+                bang = snare_bang;
+            } else if (ch == 'h') {
+                bang = hihat_bang;
+            } else if (ch == 'x') { // rest
+                bang = null;
+            } else if (ch == '1' || ch == 'w') {
+                skip = notes_per_bar;
+            } else if (ch == '2' || ch == 'h') {
+                skip = round(notes_per_bar/2);
+            } else if (ch == '4' || ch == 'q') {
+                skip = round(notes_per_bar/4);
+            } else if (ch == '8' || ch == 'e') {
+                skip = round(notes_per_bar/8);
+            } else if (ch == '6') {
+                skip = round(notes_per_bar/16);
+            } else if (ch == '3' || ch == 't') {
+                skip = round(notes_per_bar/32);
+            } else {
+                msg("Invalid character '"+ch+"' in pattern.");
+            }
+        }
+        if (note != notes_per_bar) {
+            msg("Expected "+notes_per_bar.toString()+" notes; got "+note.toString()+".");
+        }
     }
 }
 
@@ -282,21 +287,26 @@ function init() {
 
 function click_play() {
     msg(null);
-    if (g_music_bar == null) { // start playing
-        g_music_bar = new MusicBar(el("pattern").value, el("ptype").value, el("bpm").value);
-        el("bpm").value = g_music_bar.bpm;
-        if (g_music_bar.total_bangs() == 0) {
+    if (g_bar == null) { // start playing
+        const pattern = el("pattern").value;
+        const bpm = el("bpm").value;
+        if (el("ptype").selectedIndex == 0) 
+            g_bar = new BeatBar(pattern, bpm);
+        else
+            g_bar = new MusicBar(pattern, bpm);
+        el("bpm").value = g_bar.bpm;
+        if (g_bar.total_bangs() == 0) {
             msg("Nothing to play.");
-            g_music_bar = null;
+            g_bar = null;
             return;
         }
         el("play_btn").value = "Stop";
-        g_music_bar.start_play();
+        g_bar.start_play();
     } else { // stop playing
         el("play_btn").value = "Play";
         el("prog").innerHTML = "";
-        g_music_bar.stop_play();
-        g_music_bar = null;
+        g_bar.stop_play();
+        g_bar = null; // FIXME: race here?
     }
     update_help();
 }
@@ -312,7 +322,7 @@ function change_ptype() {
 }
 
 function update_help() {
-    const is_playing = (g_music_bar != null && g_music_bar.is_playing());
+    const is_playing = (g_bar != null && g_bar.is_playing());
     // Display or hide help message.
     let beat_help = false;
     let music_help = false;
@@ -320,8 +330,8 @@ function update_help() {
         beat_help = (el("ptype").selectedIndex == 0);
         music_help = !beat_help;
     }
-    el("beat_pat_help").style.display = beat_help ? "block" : "none";
-    el("music_pat_help").style.display = music_help ? "block" : "none";
+    el("beat_help").style.display = beat_help ? "block" : "none";
+    el("music_help").style.display = music_help ? "block" : "none";
     // Display or hide help button.
     if (is_playing) {
         el("help").style.display = "none";
@@ -332,9 +342,9 @@ function update_help() {
 }
 
 function change_bpm() {
-    if (g_music_bar != null) {
-        g_music_bar.set_bpm(el("bpm").value);
-        el("bpm").value = g_music_bar.bpm;
+    if (g_bar != null) {
+        g_bar.set_bpm(el("bpm").value);
+        el("bpm").value = g_bar.bpm;
     }
 }
 
