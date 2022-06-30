@@ -119,27 +119,33 @@ class Bar {
         for (const bang of this.bang(this.note)) {
             bang.play();
         }
+        this.update_prog();
+        ++this.note;
+        //  ms     sec   ms    beat   min    bar
+        // ---- =  --- * --- * ---- * ---- * ----
+        // note    min   sec   bar    beat   note
+        const ms_per_note = (60*1000 * beats_per_bar) / (this.bpm * notes_per_bar);
+        window.setTimeout(Bar.s_next_bang, ms_per_note); // wakeup for next note
+    }
+    static s_next_bang() {
+        if (g_bar != null) g_bar.next_bang();
+    }
+    update_prog() {
         const beat = Math.floor(this.note / notes_per_beat);
         let s = "";
         for (let b = 0; b < beats_per_bar; ++b) {
             s += (b <= (beat % beats_per_bar)) ? "@" : ".";
         }
         el("prog").innerHTML = s;
-        ++this.note;
-        //  ms     sec   ms    beat   min    bar
-        // ---- =  --- * --- * ---- * ---- * ----
-        // note    min   sec   bar    beat   note
-        const ms_per_note = (60*1000 * beats_per_bar) / (this.bpm * notes_per_bar);
-        window.setTimeout(Bar.s_next_bang, ms_per_note);
     }
-    static s_next_bang() {
-        if (g_bar != null) g_bar.next_bang();
+    add_bang(note, bang) {
+        this.bangs[note].push(bang);
     }
     add_to_all_empty(bang) {
         if (bang == null) return;
-        for (let n = 0; n < this.bangs.length; ++n) {
-            if (this.bangs[n].length == 0) {
-                this.bangs[n].push(bang);
+        for (let note = 0; note < this.bangs.length; ++note) {
+            if (this.bangs[note].length == 0) {
+                this.add_bang(note, bang);
             }
         }
     }
@@ -169,7 +175,7 @@ class BeatBar extends Bar {
             } else if (ch == ' ' || ch == ',') {
                 if (note >= 0) {
                     if (bang != null) {
-                        this.bangs[note].push(bang);
+                        this.add_bang(note, bang);
                     }
                     note = -1;
                 }
@@ -224,7 +230,7 @@ class MusicBar extends Bar {
                         msg("Note "+note.toString()+" out of range.");
                         note = this.bangs.length-1;
                     }
-                    this.bangs[note].push(bang);
+                    this.add_bang(note, bang);
                 }
                 if (skip >= 0) {
                     note += skip;
@@ -298,10 +304,10 @@ function click_play() {
         if (g_bar.total_bangs() == 0) {
             msg("Nothing to play.");
             g_bar = null;
-            return;
+        } else {
+            el("play_btn").value = "Stop";
+            g_bar.start_play();
         }
-        el("play_btn").value = "Stop";
-        g_bar.start_play();
     } else { // stop playing
         el("play_btn").value = "Play";
         el("prog").innerHTML = "";
