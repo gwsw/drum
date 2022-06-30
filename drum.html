@@ -321,31 +321,24 @@ function change_ptype() {
     update_help();
 }
 
-function update_help() {
-    const is_playing = (g_bar != null && g_bar.is_playing());
-    // Display or hide help message.
-    let beat_help = false;
-    let music_help = false;
-    if (g_help && !is_playing) {
-        beat_help = (el("ptype").selectedIndex == 0);
-        music_help = !beat_help;
-    }
-    el("beat_help").style.display = beat_help ? "block" : "none";
-    el("music_help").style.display = music_help ? "block" : "none";
-    // Display or hide help button.
-    if (is_playing) {
-        el("help").style.display = "none";
-    } else {
-        el("help").value = g_help ? "Hide help" : "Help";
-        el("help").style.display = "block";
-    }
-}
-
 function change_bpm() {
     if (g_bar != null) {
         g_bar.set_bpm(el("bpm").value);
         el("bpm").value = g_bar.bpm;
     }
+}
+
+function update_help() {
+    const is_playing = (g_bar != null && g_bar.is_playing());
+    const is_beat = (el("ptype").selectedIndex == 0);
+    display_el("beat_help", g_help && !is_playing && is_beat);
+    display_el("music_help", g_help && !is_playing && !is_beat);
+    el("help").value = g_help ? "Hide help" : "Help";
+    display_el("help", !is_playing);
+}
+
+function display_el(name, disp) {
+    el(name).style.display = disp ? "block" : "none";
 }
 
 function round(x) {
@@ -359,10 +352,6 @@ function msg(s, id) {
     } else {
         el(id).innerHTML += encodeURIComponent(s) + "<br>";
     }
-}
-
-function now() {
-    return performance.now();
 }
 
 function el(id) {
