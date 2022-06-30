@@ -7,21 +7,19 @@
 <body onload="init()">
 
 <table>
-<tr><td style="width:100px"> Pattern: </td><td style="width:120px"> <input type="text" id="pattern" name="pattern" size="30"> </td>
-    <td rowspan="3">
+<tr><td style="width:100px"> <label for="play_btn">Pattern:</label> </td><td style="width:120px"> <input type="text" id="pattern" name="pattern" size="30"> </td>
+    <td>
     <input type="button" id="play_btn" value="Play" onclick="click_play()"> <br/>
-    <input type="button" id="save_btn" value="Save" onclick="click_save()"> <br/>
-    <input type="button" id="load_btn" value="Load" onclick="click_load()"> <br/>
     </td>
 </tr>
-<tr><td> Pattern type: </td><td>
+<tr><td> <label for="ptype">Pattern type:</label> </td><td>
     <select id="ptype" onchange="change_ptype()">
       <option value="B">Beat notation</option>
       <option value="M">Music notation</option>
     </select> </td>
 </tr>
-<tr><td> BPM: </td>
-    <td> <input type="number" id="bpm" value="90" onchange="change_bpm()"> </td>
+<tr><td> <label for="bpm">BPM:</label> </td>
+    <td> <input type="number" id="bpm" value="90" size="4" onchange="change_bpm()"> </td>
 </tr>
 <tr><td></td><td><span id="prog" style="font-family:monospace; font-size:3vw"></span></td></tr>
 </table>
@@ -53,16 +51,14 @@ Pattern is space-separated list of '(drum)(skip)', where (drum) is
 var bass_bang      = null;
 var snare_bang     = null;
 var hihat_bang     = null;
-var notes_per_bar  = 16;
 var beats_per_bar  = 4;
-var notes_per_beat = notes_per_bar / beats_per_bar;
+var notes_per_beat = 4;
+var notes_per_bar  = beats_per_bar * notes_per_beat;
+var max_bpm        = 999;
 
 // Globals
-var g_bpm          = 90;
-var g_graph        = null;
+var g_audio        = null;
 var g_music_bar    = null;
-var g_note         = -1;
-var g_start        = 0;
 
 // -------------------------------------------------------------------
 class AudioGraph {
@@ -78,21 +74,20 @@ class AudioGraph {
     play_tone(freq, dur, gain) {
         this.osc.frequency.value = freq;
         this.set_gain(gain);
-        ///FIXME window.setTimeout(function() { this.set_gain(0); }, dur);
-        window.setTimeout(AudioGraph_stop, dur);
+        (function(_this) {
+            window.setTimeout(function() { _this.set_gain(0); }, dur);})(this);
     }
     set_gain(gain) {
         this.gain.gain.setValueAtTime(gain, this.audio.currentTime);
     }
 };
-function AudioGraph_stop() {
-    g_graph.set_gain(0);
-}
 
 // -------------------------------------------------------------------
 class MusicBar {
     constructor(pattern, ptype) {
         this.bangs = [];
+        this.note = -1;
+        this.bpm = 90;
         for (let n = 0; n < notes_per_bar; ++n) {
             this.bangs.push([]);
         }
@@ -202,6 +197,40 @@ class MusicBar {
             msg("Expected "+notes_per_bar.toString()+" notes/bar; got "+note.toString()+".");
         }
     }
+    set_bpm(bpm) {
+        if (bpm <= 0) bpm = 1;
+        if (bpm > max_bpm) bpm = max_bpm;
+        this.bpm = bpm;
+    }
+    start_play() {
+        this.note = 0;
+        this.next_bang();
+    }
+    stop_play() {
+        this.note = -1;
+    }
+    is_playing() {
+        return (this.note >= 0);
+    }
+    next_bang() {
+        if (this.note < 0) return;
+        for (const bang of this.bang(this.note)) {
+            bang.play();
+        }
+        const beat = Math.floor(this.note / notes_per_beat);
+        let s = "";
+        for (let b = 0; b < beats_per_bar; ++b) {
+            s += (b <= (beat % beats_per_bar)) ? "@" : ".";
+        }
+        el("prog").innerHTML = s;
+        ++this.note;
+
+        const ms_per_note = (60*1000 * beats_per_bar) / (this.bpm * notes_per_bar);
+        window.setTimeout(MusicBar.s_next_bang, ms_per_note);
+    }
+    static s_next_bang() {
+        if (g_music_bar != null) g_music_bar.next_bang();
+    }
     add_all(bang) {
         if (bang == null) return;
         for (let n = 0; n < this.bangs.length; ++n) {
@@ -230,14 +259,14 @@ class Bang {
         this.gain = gain;
     }
     play() {
-        g_graph.play_tone(this.freq, this.dur, this.gain);
+        g_audio.play_tone(this.freq, this.dur, this.gain);
     }
 }
 
 // -------------------------------------------------------------------
 
 function init() {
-    g_graph = new AudioGraph();
+    g_audio = new AudioGraph();
     bass_bang  = new Bang(120, 100, 1);
     snare_bang = new Bang(240, 100, 1);
     hihat_bang = new Bang(600, 40, .1);
@@ -246,35 +275,33 @@ function init() {
 function click_play() {
     msg(null);
     let btn = el("play_btn");
-    if (g_note < 0) { // start playing
+    if (g_music_bar == null) { // start playing
         const pattern = el("pattern").value;
         const ptype = el("ptype").value;
         g_music_bar = new MusicBar(pattern, ptype);
         if (g_music_bar.total_bangs() == 0) {
             msg("Nothing to play.");
+            g_music_bar = null;
             return;
         }
         display_help(false, false);
         btn.value = "Stop";
-        g_note = 0;
-        g_start = now();
-        next_bang();
+        g_music_bar.start_play();
     } else { // stop playing
-        change_ptype();
+        update_help();
         btn.value = "Play";
         el("prog").innerHTML = "";
-        g_note = -1;
+        g_music_bar.stop_play();
+        g_music_bar = null;
     }
-}
-
-function click_save() {
-}
-
-function click_load() {
 }
 
 function change_ptype() {
     el("pattern").value = "";
+    update_help();
+}
+
+function update_help() {
     const sel = el("ptype").selectedIndex;
     if (sel == 0) {
         display_help(true, false);
@@ -289,25 +316,9 @@ function display_help(beat, music) {
 }
 
 function change_bpm() {
-    g_bpm = el("bpm").value;
+    if (g_music_bar != null) g_music_bar.set_bpm(el("bpm").value);
 }
 
-function next_bang() {
-    if (g_note < 0) return;
-    for (const bang of g_music_bar.bang(g_note)) {
-        bang.play();
-    }
-    const beat = Math.floor(g_note / notes_per_beat);
-    let s = "";
-    for (let b = 0; b < beats_per_bar; ++b) {
-        s += (b <= (beat % beats_per_bar)) ? "@" : ".";
-    }
-    el("prog").innerHTML = s;
-    ++g_note;
-
-    const ms_per_note = (60*1000 * beats_per_bar) / (g_bpm * notes_per_bar);
-    window.setTimeout(next_bang, ms_per_note);
-}
 
 function round(x) {
     return Math.floor(x + 0.5);
