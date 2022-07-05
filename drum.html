@@ -61,7 +61,6 @@ var max_bpm        = 999;
 
 // Globals
 var g_bar          = null;
-var g_help         = false;
 
 // -------------------------------------------------------------------
 // Graph is : (osc)->(gain)->(output)
@@ -278,74 +277,88 @@ class Bang {
 }
 
 // -------------------------------------------------------------------
+class UI {
+    constructor() {
+        const audio = new AudioGraph();
+        bass_bang  = new Bang(audio, 120, 100, 1);
+        snare_bang = new Bang(audio, 240, 100, 1);
+        hihat_bang = new Bang(audio, 600, 40, .1);
+        this.help_active = false;
+    }
+    click_play() {
+        msg(null);
+        if (g_bar == null) { // start playing
+            const pattern = el("pattern").value;
+            const bpm = el("bpm").value;
+            if (el("ptype").selectedIndex == 0) 
+                g_bar = new BeatBar(pattern, bpm);
+            else
+                g_bar = new MusicBar(pattern, bpm);
+            el("bpm").value = g_bar.bpm;
+            if (g_bar.empty) {
+                msg("Nothing to play.");
+                g_bar = null;
+            } else {
+                el("play_btn").value = "Stop";
+                g_bar.start_play();
+            }
+        } else { // stop playing
+            el("play_btn").value = "Play";
+            el("prog").innerHTML = "";
+            g_bar.stop_play();
+            g_bar = null; // FIXME: race here?
+        }
+        this.update_help();
+    }
+    click_help() {
+        this.help_active = !this.help_active;
+        this.update_help();
+    }
+    change_ptype() {
+        el("pattern").value = "";
+        this.update_help();
+    }
+    change_bpm() {
+        if (g_bar != null) {
+            g_bar.set_bpm(el("bpm").value);
+            el("bpm").value = g_bar.bpm;
+        }
+    }
+    update_help() {
+        const is_playing = (g_bar != null && g_bar.is_playing());
+        const is_beat = (el("ptype").selectedIndex == 0);
+        this.display_el("beat_help", this.help_active && !is_playing && is_beat);
+        this.display_el("music_help", this.help_active && !is_playing && !is_beat);
+        el("help").value = this.help_active ? "Hide help" : "Help";
+        this.display_el("help", !is_playing);
+    }
+    display_el(name, disp) {
+        el(name).style.display = disp ? "block" : "none";
+    }
+}
+
+// -------------------------------------------------------------------
+
+var ui = null;
 
 function init() {
-    const audio = new AudioGraph();
-    bass_bang  = new Bang(audio, 120, 100, 1);
-    snare_bang = new Bang(audio, 240, 100, 1);
-    hihat_bang = new Bang(audio, 600, 40, .1);
+    ui = new UI();
 }
-
 function click_play() {
-    msg(null);
-    if (g_bar == null) { // start playing
-        const pattern = el("pattern").value;
-        const bpm = el("bpm").value;
-        if (el("ptype").selectedIndex == 0) 
-            g_bar = new BeatBar(pattern, bpm);
-        else
-            g_bar = new MusicBar(pattern, bpm);
-        el("bpm").value = g_bar.bpm;
-        if (g_bar.empty) {
-            msg("Nothing to play.");
-            g_bar = null;
-        } else {
-            el("play_btn").value = "Stop";
-            g_bar.start_play();
-        }
-    } else { // stop playing
-        el("play_btn").value = "Play";
-        el("prog").innerHTML = "";
-        g_bar.stop_play();
-        g_bar = null; // FIXME: race here?
-    }
-    update_help();
+    if (ui != null) ui.click_play();
 }
-
 function click_help() {
-    g_help = !g_help;
-    update_help();
+    if (ui != null) ui.click_help();
 }
-
 function change_ptype() {
-    el("pattern").value = "";
-    update_help();
+    if (ui != null) ui.change_ptype();
 }
-
 function change_bpm() {
-    if (g_bar != null) {
-        g_bar.set_bpm(el("bpm").value);
-        el("bpm").value = g_bar.bpm;
-    }
+    if (ui != null) ui.change_bpm();
 }
-
-function update_help() {
-    const is_playing = (g_bar != null && g_bar.is_playing());
-    const is_beat = (el("ptype").selectedIndex == 0);
-    display_el("beat_help", g_help && !is_playing && is_beat);
-    display_el("music_help", g_help && !is_playing && !is_beat);
-    el("help").value = g_help ? "Hide help" : "Help";
-    display_el("help", !is_playing);
-}
-
-function display_el(name, disp) {
-    el(name).style.display = disp ? "block" : "none";
-}
-
 function round(x) {
     return Math.floor(x + 0.5);
 }
-
 function msg(s, id) {
     if (id === undefined) id = "msg";
     if (s == null) {
@@ -354,14 +367,12 @@ function msg(s, id) {
         el(id).innerHTML += html_encode(s) + "<br>";
     }
 }
-
 function html_encode(s) {
     let r = '';
     for (let i = 0; i < s.length; ++i)
         r += "&#" + s.charCodeAt(i) + ";";
     return r;
 }
-
 function el(id) {
     return document.getElementById(id);
 }
