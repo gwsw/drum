@@ -60,7 +60,7 @@ var notes_per_bar  = beats_per_bar * notes_per_beat;
 var max_bpm        = 999;
 
 // Globals
-var g_bar    = null;
+var g_bar          = null;
 var g_help         = false;
 
 // -------------------------------------------------------------------
@@ -94,6 +94,7 @@ class Bar {
     constructor(bpm) {
         this.bangs = [];
         this.note = -1;
+        this.empty = true;
         this.set_bpm(bpm);
         for (let n = 0; n < notes_per_bar; ++n) {
             this.bangs.push([]);
@@ -140,6 +141,7 @@ class Bar {
     }
     add_bang(note, bang) {
         this.bangs[note].push(bang);
+        this.empty = false;
     }
     add_to_all_empty(bang) {
         if (bang == null) return;
@@ -151,13 +153,6 @@ class Bar {
     }
     bang(idx) {
         return this.bangs[idx % this.bangs.length];
-    }
-    total_bangs() {
-        let bangs = 0;
-        for (const bang of this.bangs) {
-            bangs += bang.length;
-        }
-        return bangs;
     }
 }
 
@@ -301,7 +296,7 @@ function click_play() {
         else
             g_bar = new MusicBar(pattern, bpm);
         el("bpm").value = g_bar.bpm;
-        if (g_bar.total_bangs() == 0) {
+        if (g_bar.empty) {
             msg("Nothing to play.");
             g_bar = null;
         } else {
@@ -356,8 +351,15 @@ function msg(s, id) {
     if (s == null) {
         el(id).innerHTML = ""
     } else {
-        el(id).innerHTML += encodeURIComponent(s) + "<br>";
+        el(id).innerHTML += html_encode(s) + "<br>";
     }
+}
+
+function html_encode(s) {
+    let r = '';
+    for (let i = 0; i < s.length; ++i)
+        r += "&#" + s.charCodeAt(i) + ";";
+    return r;
 }
 
 function el(id) {
