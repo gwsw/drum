@@ -6,6 +6,7 @@
 
 <body onload="init()">
 
+<h2>Drum Patterns</h2>
 <table>
 <tr><td style="width:100px"> <label for="play_btn">Pattern:</label> </td><td style="width:120px"> <input type="text" id="pattern" name="pattern" size="30"> </td>
     <td>
@@ -56,7 +57,7 @@ var snare_bang     = null;
 var hihat_bang     = null;
 var beats_per_bar  = 4;
 var notes_per_beat = 4;
-var notes_per_bar  = beats_per_bar * notes_per_beat;
+var notes_per_bar  = notes_per_beat * beats_per_bar;
 var max_bpm        = 999;
 
 // Globals
@@ -78,13 +79,13 @@ class AudioGraph {
     play_tone(freq, dur, gain) {
         this.osc.frequency.value = freq;
         this.set_gain(gain);
-        (function(_this) {
-            window.setTimeout(function() { _this.set_gain(0); }, dur);})(this);
+        (function(audio) {
+            window.setTimeout(function() { audio.set_gain(0); }, dur);})(this);
     }
     set_gain(gain) {
         this.gain.gain.setValueAtTime(gain, this.audio.currentTime);
     }
-};
+}
 
 // -------------------------------------------------------------------
 // A bar is divided into beats and each beat into notes.
@@ -121,20 +122,20 @@ class Bar {
         }
         this.update_prog();
         ++this.note;
+        // Schedule next bang.
         //  ms     sec   ms    beat   min    bar
         // ---- =  --- * --- * ---- * ---- * ----
         // note    min   sec   bar    beat   note
         const ms_per_note = (60*1000 * beats_per_bar) / (this.bpm * notes_per_bar);
-        window.setTimeout(Bar.s_next_bang, ms_per_note); // wakeup for next note
-    }
-    static s_next_bang() {
-        if (g_bar != null) g_bar.next_bang();
+        (function(bar) {
+            window.setTimeout(function() { bar.next_bang(); }, ms_per_note);})(this);
     }
     update_prog() {
-        const beat = Math.floor(this.note / notes_per_beat);
+        const beat = Math.floor(this.note / notes_per_beat) % beats_per_bar;
+        const beat_str = (beat+1).toString();
         let s = "";
         for (let b = 0; b < beats_per_bar; ++b) {
-            s += (b <= (beat % beats_per_bar)) ? "@" : ".";
+            s += (b == beat) ? beat_str : ".";
         }
         el("prog").innerHTML = s;
     }
