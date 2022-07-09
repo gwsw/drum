@@ -132,10 +132,12 @@ class Bar {
     }
     update_prog() {
         const beat = Math.floor(this.note / notes_per_beat) % beats_per_bar;
-        const beat_str = (beat+1).toString();
+        const sub_beat = this.note % notes_per_beat;
+        const sub_beat_str = ["...","e..",".&.","..u"][sub_beat];
+        const beat_str = (beat+1).toString() + sub_beat_str;
         let s = "";
         for (let b = 0; b < beats_per_bar; ++b) {
-            s += (b == beat) ? beat_str : ".";
+            s += (b == beat) ? beat_str : "....";
         }
         el("prog").innerHTML = s;
     }
